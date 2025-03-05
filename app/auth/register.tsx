@@ -32,10 +32,10 @@ export default function RegisterScreen() {
     }
 
     try {
-      const response = await fetch("https://api.example.com/register", {
+      const response = await fetch("https://care-tracker-api-production.up.railway.app/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, forename, email, phone, password }),
+        body: JSON.stringify({ nom: name, prenom: forename, email: email, tel: phone, password: password, role: "usager" }),
       });
 
       const data = await response.json();
@@ -103,8 +103,8 @@ export default function RegisterScreen() {
               style={styles.input}
               placeholder="Téléphone"
               value={phone}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
               autoCapitalize="none"
             />
           </View>

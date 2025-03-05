@@ -18,7 +18,7 @@ export default function TasksScreen() {
   const [modalVisibleNFC, setModalVisibleNFC] = useState(false);
 
   const handleNfcScan = async (taskId) => {
-    setModalVisibleNFC(true); // Ouvre le modal d'attente NFC
+    setModalVisibleNFC(true);
     setScanning(true);
 
 
@@ -77,6 +77,66 @@ export default function TasksScreen() {
     }
   };
 
+  const handleManualCheckIn = async (task) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Erreur", "Token introuvable.");
+        return;
+      }
+  
+      // Définir l'URL de l'API en fonction du statut de la tâche
+      const url = task.statut === "planifié"
+        ? `https://care-tracker-api-production.up.railway.app/pointages/start/${task.id}`
+        : `https://care-tracker-api-production.up.railway.app/pointages/end/${task.id}`;
+  
+      // Effectuer l'appel API
+      const response =  task.statut === "planifié"
+      ? await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ methode: "Manuel" }),
+        })
+      : await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message : "Pointage terminé avec succès.",
+          task: { "id": task.id, "statut": "terminé" } }),
+        });
+  
+      const data = await response.json();
+  
+      if (response.ok) {
+        Alert.alert(
+          "Pointage réussi",
+          task.statut === "planifié"
+            ? "Pointage de début enregistré."
+            : "Pointage de fin enregistré."
+        );
+  
+        // Mettre à jour le statut de la tâche
+        setTasks((prevTasks) =>
+          prevTasks.map((t) =>
+            t.id === task.id
+              ? { ...t, statut: task.statut === "planifié" ? "en cours" : "terminé" }
+              : t
+          )
+        );
+      } else {
+        throw new Error(data.message || "Erreur lors du pointage.");
+      }
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de pointer la tâche.");
+      console.error("Erreur lors du pointage :", error);
+    }
+  };
+
   const fetchTasks = async (showAlert = false) => {
     setRefreshing(true);
     setOfflineMode(false);
@@ -85,7 +145,7 @@ export default function TasksScreen() {
       if (!token) return;
 
       const response = await fetch(
-        "https://care-tracker-api-production.up.railway.app/tasks",
+        "https://care-tracker-api-production.up.railway.app/tasks/next7days",
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -199,7 +259,7 @@ export default function TasksScreen() {
       case "en cours":
         return "En cours";
       case "planifié":
-        return "À venir";
+        return "Planifié";
       default:
         return "Inconnu";
     }
@@ -216,6 +276,7 @@ export default function TasksScreen() {
           </View>
         )}
       </View>
+      <Text style={styles.subtitle}>7 prochaine jours</Text>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -246,12 +307,7 @@ export default function TasksScreen() {
               {task.remarques && <Text style={styles.taskRemarks}>{task.remarques}</Text>}
 
               <View style={styles.taskActions}>
-                <TouchableOpacity style={styles.nfcButton} onPress={() => handleNfcScan(task.id)}>
-                  <Radio size={16} color="#FFF" />
-                  <Text style={styles.nfcButtonText}>Scan NFC</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.eventButton}
+              <TouchableOpacity style={styles.eventButton}
                   onPress={() => {
                     setSelectedTask(task);
                     setSelectedRemark(task.remarques || "Aucune remarque disponible");
@@ -260,6 +316,24 @@ export default function TasksScreen() {
                   }}
                 >
                   <Text style={styles.eventButtonText}>Détails</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.taskActions}>
+                <TouchableOpacity
+                  style={styles.nfcButton}
+                  onPress={() => handleNfcScan(task.id)}
+                >
+                  <Radio size={16} color="#FFF" />
+                  <Text style={styles.nfcButtonText}>Scan NFC</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.manualButton}
+                  onPress={() => handleManualCheckIn(task)}
+                >
+                  <Text style={styles.manualButtonText}>
+                    {task.statut === "planifié" ? "Démarrer" : "Terminer"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -331,6 +405,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: "#1E293B",
+  },
+  subtitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#1E293B",
+    marginBottom: 5,
   },
   offlineBanner: {
     flexDirection: "row",
@@ -430,5 +510,18 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: "#FFF",
+  },
+  manualButton: {
+    backgroundColor: "#10B981",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 10,
+  },
+  manualButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

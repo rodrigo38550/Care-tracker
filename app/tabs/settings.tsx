@@ -7,7 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function SettingsScreen() {
   const systemTheme = useColorScheme(); // Détecte le thème système
-  const [darkMode, setDarkMode] = useState(systemTheme === "dark");
+  const [darkMode, setDarkMode] = useState(systemTheme === "light");
   const [notifications, setNotifications] = useState(true);
   const [locationTracking, setLocationTracking] = useState(true);
   const [nfcEnabled, setNfcEnabled] = useState(true);

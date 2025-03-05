@@ -94,7 +94,7 @@ export default function LoginScreen() {
     };
     await AsyncStorage.setItem("token", "fake-token-123");
     await AsyncStorage.setItem("user", JSON.stringify(testUser));
-    router.replace("/"); // Redirige vers le tableau de bord
+    router.replace("./tabs/index");
   }}
 >
   <Text style={styles.loginButtonText}>Passer la connexion</Text>

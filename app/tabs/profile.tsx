@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator, Modal, TextInput, Button, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CreditCard as Edit, Clock, CircleCheck as CheckCircle, MapPin, Phone, Mail, Calendar, LogOut } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 export default function ProfileScreen() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
   const router = useRouter();
 
   const availabilityData = [
@@ -17,6 +18,16 @@ export default function ProfileScreen() {
     { day: "Jeudi", slots: ["available", "available", "unavailable"] },
     { day: "Vendredi", slots: ["available", "available", "unavailable"] },
   ];
+  const [editedUser, setEditedUser] = useState({
+    nom: "",
+    prenom: "",
+    tel: "",
+    num_voie: "",
+    type_voie: "",
+    nom_voie: "",
+    ville: "",
+    code_postal: "",
+  });
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -53,6 +64,79 @@ export default function ProfileScreen() {
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem("user");
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          const adresseParts = parsedUser.adresse?.split(" ") || ["", "", "", "", ""];
+          setEditedUser({
+            nom: parsedUser.nom || "",
+            prenom: parsedUser.prenom || "",
+            tel: parsedUser.tel || "",
+            num_voie: adresseParts[0] || "",
+            type_voie: adresseParts[1] || "",
+            nom_voie: adresseParts[2] || "",
+            ville: adresseParts[3] || "",
+            code_postal: adresseParts[4] || "",
+          });
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement du profil:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfiles();
+  }, []);
+  
+  const saveProfileChanges = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Erreur", "Vous devez être connecté.");
+        return;
+      }
+
+      const updatedUser = {
+        nom: editedUser.nom || user.nom,
+        prenom: editedUser.prenom || user.prenom,
+        tel: editedUser.tel || user.tel,
+        num_voie: editedUser.num_voie || user.num_voie,
+        type_voie: editedUser.type_voie || user.type_voie,
+        nom_voie: editedUser.nom_voie || user.nom_voie,
+        ville: editedUser.ville || user.ville,
+        code_postal: editedUser.code_postal || user.code_postal,
+      };
+
+      const response = await fetch("https://care-tracker-api-production.up.railway.app/users/me", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedUser),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUser(updatedUser);
+        await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+        setModalVisible(false);
+        Alert.alert("Succès", "Profil mis à jour avec succès.");
+      } else {
+        Alert.alert("Erreur", data.message || "Une erreur est survenue.");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour:", error);
+      Alert.alert("Erreur", "Impossible de mettre à jour le profil.");
+    }
+  };
+
   const logout = async () => {
     await AsyncStorage.clear();
     router.replace("/auth/login");
@@ -76,25 +160,6 @@ export default function ProfileScreen() {
               <Text style={styles.userName}>{user.nom} {user.prenom}</Text>
               <Text style={styles.userRole}>{user.role}</Text>
 
-              <View style={styles.userStats}>
-                <View style={styles.statItem}>
-                  <Clock size={20} color="#3B82F6" />
-                  <Text style={styles.statValue}>128 h</Text>
-                  <Text style={styles.statLabel}>Ce mois</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <CheckCircle size={20} color="#10B981" />
-                  <Text style={styles.statValue}>69</Text>
-                  <Text style={styles.statLabel}>Interventions</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <MapPin size={20} color="#8B5CF6" />
-                  <Text style={styles.statValue}>12</Text>
-                  <Text style={styles.statLabel}>Clients</Text>
-                </View>
-              </View>
             </View>
 
             <View style={styles.section}>
@@ -118,76 +183,17 @@ export default function ProfileScreen() {
                   <MapPin size={20} color="#64748B" style={styles.infoIcon} />
                   <View>
                     <Text style={styles.infoLabel}>Adresse</Text>
-                    <Text style={styles.infoValue}>28 Rue du Faubourg Saint-Antoine, 75012 Paris</Text>
+                    <Text style={styles.infoValue}>{user.num_voie} {user.type_voie} {user.nom_voie} {user.ville} {user.code_postal}</Text>
                   </View>
                 </View>
               </View>
 
-              <TouchableOpacity style={styles.editProfileButton}>
+              <TouchableOpacity style={styles.editProfileButton} onPress={() => setModalVisible(true)}>
               <Text style={styles.editProfileText}>Modifier le profil</Text>
               </TouchableOpacity>
 
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Compétences et certifications</Text>
-              
-              <View style={styles.skillsContainer}>
-                <View style={styles.skillItem}>
-                  <Text style={styles.skillText}>Aide à la toilette</Text>
-                </View>
-                <View style={styles.skillItem}>
-                  <Text style={styles.skillText}>Préparation de repas</Text>
-                </View>
-                <View style={styles.skillItem}>
-                  <Text style={styles.skillText}>Ménage</Text>
-                </View>
-                <View style={styles.skillItem}>
-                  <Text style={styles.skillText}>Accompagnement</Text>
-                </View>
-                <View style={styles.skillItem}>
-                  <Text style={styles.skillText}>Premiers secours</Text>
-                </View>
-              </View>
-              
-              <View style={styles.certificationsContainer}>
-                <View style={styles.certificationItem}>
-                  <CheckCircle size={16} color="#10B981" style={styles.certIcon} />
-                  <Text style={styles.certificationText}>Diplôme d'État d'Accompagnant Éducatif et Social (DEAES)</Text>
-                </View>
-                <View style={styles.certificationItem}>
-                  <CheckCircle size={16} color="#10B981" style={styles.certIcon} />
-                  <Text style={styles.certificationText}>Formation aux premiers secours (PSC1)</Text>
-                </View>
-                <View style={styles.certificationItem}>
-                  <CheckCircle size={16} color="#10B981" style={styles.certIcon} />
-                  <Text style={styles.certificationText}>Certificat de qualification professionnelle (CQP)</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Disponibilités</Text>
-
-              <View style={styles.availabilityContainer}>
-                {availabilityData.map(({ day, slots }, index) => (
-                  <View key={index} style={styles.dayRow}>
-                    <Text style={styles.dayName}>{day}</Text>
-                    <View style={styles.timeSlots}>
-                      {["Matin", "Après-midi", "Soir"].map((slot, slotIndex) => (
-                        <View key={slotIndex} style={[styles.timeSlot, slots[slotIndex] === "available" ? styles.availableSlot : styles.unavailableSlot]}>
-                          <Text style={styles.timeSlotText}>{slot}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                ))}
-              </View>
-
-              <TouchableOpacity style={styles.editAvailabilityButton}>
-                <Text style={styles.editAvailabilityText}>Modifier les disponibilités</Text>
-              </TouchableOpacity>
-            </View>
 
             <TouchableOpacity style={styles.logoutButton} onPress={logout}>
               <LogOut size={20} color="#EF4444" />
@@ -198,6 +204,24 @@ export default function ProfileScreen() {
           <Text style={styles.errorText}>Impossible de charger le profil</Text>
         )}
       </ScrollView>
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Modifier le profil</Text>
+            <TextInput style={styles.input} placeholder="Nom" value={editedUser.nom} onChangeText={(text) => setEditedUser({ ...editedUser, nom: text })} />
+            <TextInput style={styles.input} placeholder="Prénom" value={editedUser.prenom} onChangeText={(text) => setEditedUser({ ...editedUser, prenom: text })} />
+            <TextInput style={styles.input} placeholder="Téléphone" value={editedUser.tel} onChangeText={(text) => setEditedUser({ ...editedUser, tel: text })} />
+            <TextInput style={styles.input} placeholder="Numéro de voie" value={editedUser.num_voie} onChangeText={(text) => setEditedUser({ ...editedUser, num_voie: text })} />
+            <TextInput style={styles.input} placeholder="Type de voie (Rue, Avenue...)" value={editedUser.type_voie} onChangeText={(text) => setEditedUser({ ...editedUser, type_voie: text })} />
+            <TextInput style={styles.input} placeholder="Nom de la voie" value={editedUser.nom_voie} onChangeText={(text) => setEditedUser({ ...editedUser, nom_voie: text })} />
+            <TextInput style={styles.input} placeholder="Ville" value={editedUser.ville} onChangeText={(text) => setEditedUser({ ...editedUser, ville: text })} />
+            <TextInput style={styles.input} placeholder="Code postal" value={editedUser.code_postal} onChangeText={(text) => setEditedUser({ ...editedUser, code_postal: text })} />
+
+            <Button title="Enregistrer" onPress={saveProfileChanges} />
+            <Button title="Annuler" color="red" onPress={() => setModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -328,6 +352,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    width: "90%",
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+    borderRadius: 10,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 15,
+    color: "#333",
+  },
+  input: {
+    width: "100%",
+    height: 40,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    marginBottom: 10,
   },
 });
 

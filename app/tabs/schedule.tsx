@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl} from "react-native";
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, TextInput, Alert} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronLeft, ChevronRight, Clock, MapPin, Radio } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, Clock, MapPin, Radio, Save, X } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function ScheduleScreen() {
@@ -9,6 +9,10 @@ export default function ScheduleScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedRemark, setSelectedRemark] = useState("");
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [newRemark, setNewRemark] = useState("");
   const [tasks, setTasks] = useState([]);
 
   const fetchPlannings = async (showAlert = false) => {
@@ -60,6 +64,42 @@ export default function ScheduleScreen() {
 
     loadPlannings();
   }, []);
+
+  const updateRemark = async () => {
+    if (!selectedTask) return;
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(`https://care-tracker-api-production.up.railway.app/tasks/${selectedTask.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ remarques: newRemark }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Échec de la mise à jour du commentaire.");
+      }
+
+      // Mettre à jour la liste des tâches localement
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === selectedTask.id ? { ...task, remarques: newRemark } : task
+        )
+      );
+
+      Alert.alert("Succès", "Le commentaire a été mis à jour.");
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de mettre à jour le commentaire.");
+      console.error("Erreur de mise à jour :", error);
+    }
+
+    setModalVisible(false);
+  };
 
   const getDaysOfWeek = () => {
     const days = [];
@@ -185,9 +225,17 @@ export default function ScheduleScreen() {
                 </View>
 
                 <View style={styles.eventActions}>
-                  <TouchableOpacity style={styles.eventButton}>
-                    <Text style={styles.eventButtonText}>Détails</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.eventButton}
+                  onPress={() => {
+                    setSelectedTask(task);
+                    setSelectedRemark(task.remarques || "Aucune remarque disponible");
+                    setNewRemark(task.remarques);
+                    setModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.eventButtonText}>Détails</Text>
+                </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -196,6 +244,31 @@ export default function ScheduleScreen() {
           <Text style={styles.errorText}>Aucune tâche prévue pour ce jour</Text>
         )}
       </ScrollView>
+
+      <Modal transparent={true} visible={modalVisible} animationType="slide">
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Modifier le commentaire</Text>
+            <TextInput
+              style={styles.modalInput}
+              multiline
+              placeholder="Saisir un commentaire..."
+              value={newRemark}
+              onChangeText={setNewRemark}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={updateRemark} style={styles.saveButton}>
+                <Save size={20} color="#FFF" />
+                <Text style={styles.modalButtonText}>Enregistrer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseButton}>
+                <X size={20} color="#FFF" />
+                <Text style={styles.modalButtonText}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -360,5 +433,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: 'Inter-SemiBold',
   },
+  modalBackground: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalContainer: { backgroundColor: "#FFF", padding: 20, borderRadius: 10, width: "80%", alignItems: "center" },
+  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
+  modalText: { fontSize: 16, color: "#374151", textAlign: "center", marginBottom: 15 },
+  modalCloseButton: { flexDirection: "row", backgroundColor: "#3B82F6", padding: 10, borderRadius: 5, alignItems: "center" },
+  modalCloseText: { color: "#FFF", marginLeft: 5 },
+  modalInput: { width: "100%", borderWidth: 1, borderColor: "#E5E7EB", padding: 10, borderRadius: 5, minHeight: 80, textAlignVertical: "top" },
+  modalActions: { flexDirection: "row", justifyContent: "space-between", width: "100%", marginTop: 10 },
+  saveButton: { flexDirection: "row", backgroundColor: "#10B981", padding: 10, borderRadius: 5, alignItems: "center" },
+  modalButtonText: { color: "#FFF", marginLeft: 5 },
 });
 

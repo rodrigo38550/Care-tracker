@@ -27,7 +27,7 @@ export default function HomeScreen() {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch("https://care-tracker-api-production.up.railway.app/tasks", {
+      const response = await fetch("https://care-tracker-api-production.up.railway.app/tasks/today", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -81,7 +81,7 @@ export default function HomeScreen() {
           </TouchableOpacity>*/}
         </View>
 
-        <View style={styles.statusCard}>
+        {/*<View style={styles.statusCard}>
           <View style={styles.statusHeader}>
             <Text style={styles.statusTitle}>Statut actuel</Text>
             <View style={styles.statusBadge}>
@@ -99,7 +99,7 @@ export default function HomeScreen() {
               <Text style={styles.checkInText}>Pointer départ (NFC)</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </View>*/}
 
         <Text style={styles.sectionTitle}>Tâches du jour</Text>
         {loading ? (
@@ -122,14 +122,14 @@ export default function HomeScreen() {
           <Text style={styles.errorText}>Aucune tâche prévue aujourd'hui</Text>
         )}
 
-        <Text style={styles.sectionTitle}>Tableau de bord</Text>
+        {/*<Text style={styles.sectionTitle}>Tableau de bord</Text>
 
         <View style={styles.statsContainer}>
           <StatCard icon={<Clock size={24} color="#3B82F6" />} value={`${tasks.length}`} label="Tâches aujourd'hui" />
           <StatCard icon={<CheckCircle size={24} color="#10B981" />} value={`${tasks.filter(t => t.status === "terminé").length}`} label="Tâches complétées" />
           <StatCard icon={<AlertCircle size={24} color="#EF4444" />} value={`${tasks.filter(t => t.status === "delayed").length}`} label="Retards" />
           <StatCard icon={<Users size={24} color="#0EA5E9" />} value={`${new Set(tasks.map(t => t.client_nom)).size}`} label="Clients actifs" />
-        </View>
+        </View>*/}
       </ScrollView>
     </SafeAreaView>
   );
@@ -163,11 +163,11 @@ function TaskCard({ time_start, time_end, title, client, address, status }) {
       <Text style={styles.taskTitle}>{title}</Text>
       
       <View style={styles.clientContainer}>
-        <Image 
+        {/*<Image 
           source={{ uri: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=50&auto=format&fit=crop' }} 
           style={styles.clientImage} 
         />
-        <Text style={styles.clientName}>{client}</Text>
+        <Text style={styles.clientName}>{client}</Text>*/}
       </View>
       
       <Text style={styles.taskAddress}>{address}</Text>
