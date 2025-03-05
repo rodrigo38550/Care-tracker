@@ -1,16 +1,7 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-  RefreshControl,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl, Alert, Modal, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { WifiOff, Radio } from "lucide-react-native";
+import { WifiOff, Radio, Save, X } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
 
@@ -19,6 +10,72 @@ export default function TasksScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [offlineMode, setOfflineMode] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedRemark, setSelectedRemark] = useState("");
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [newRemark, setNewRemark] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [modalVisibleNFC, setModalVisibleNFC] = useState(false);
+
+  const handleNfcScan = async (taskId) => {
+    setModalVisibleNFC(true); // Ouvre le modal d'attente NFC
+    setScanning(true);
+
+
+    try {
+      const isSupported = await NfcManager.isSupported();
+      console.log("NFC supporté:", isSupported);
+    
+      if (!isSupported) {
+        Alert.alert("NFC non supporté", "Votre appareil ne supporte pas la lecture NFC.");
+        setModalVisibleNFC(false);
+        return;
+      }
+    
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+      console.log("Technologie NFC activée");
+    } catch (error) {
+      console.error("Erreur lors de l'activation de la technologie NFC:", error);
+      Alert.alert("Erreur NFC", `Impossible d'activer la technologie NFC. ${error.message}`);
+    } finally {
+      setScanning(false);
+      setModalVisibleNFC(false);
+    }
+    
+    try {
+      // Vérifie si NFC est activé
+      const isEnabled = await NfcManager.isEnabled();
+      if (!isEnabled) {
+        Alert.alert("NFC désactivé", "Veuillez activer le NFC dans les paramètres.");
+        setModalVisibleNFC(false);
+        return;
+      }
+
+      // Demande l'accès au NFC
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+
+      // Définition du timeout pour arrêter après 10 secondes
+      const timeout = setTimeout(() => {
+        setScanning(false);
+        setModalVisibleNFC(false);
+        NfcManager.cancelTechnologyRequest();
+        Alert.alert("Temps écoulé", "Aucune carte NFC détectée.");
+      }, 10000); // 10 secondes
+
+      // Écoute un scan NFC
+      const tag = await NfcManager.getTag();
+      clearTimeout(timeout); // Annule le timeout si un tag est détecté
+
+      console.log("NFC Tag détecté:", tag);
+      Alert.alert("Scan réussi", "Carte NFC détectée !");
+    } catch (error) {
+      Alert.alert("Erreur NFC", `Impossible de scanner la carte. ${error}`);
+    } finally {
+      setScanning(false);
+      setModalVisibleNFC(false);
+      NfcManager.cancelTechnologyRequest();
+    }
+  };
 
   const fetchTasks = async (showAlert = false) => {
     setRefreshing(true);
@@ -60,6 +117,43 @@ export default function TasksScreen() {
       }
     }
     setRefreshing(false);
+  };
+
+  
+  const updateRemark = async () => {
+    if (!selectedTask) return;
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(`https://care-tracker-api-production.up.railway.app/tasks/${selectedTask.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ remarques: newRemark }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Échec de la mise à jour du commentaire.");
+      }
+
+      // Mettre à jour la liste des tâches localement
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === selectedTask.id ? { ...task, remarques: newRemark } : task
+        )
+      );
+
+      Alert.alert("Succès", "Le commentaire a été mis à jour.");
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de mettre à jour le commentaire.");
+      console.error("Erreur de mise à jour :", error);
+    }
+
+    setModalVisible(false);
   };
 
   useEffect(() => {
@@ -111,20 +205,6 @@ export default function TasksScreen() {
     }
   };
 
-  const handleNfcScan = async (taskId) => {
-    try {
-      await NfcManager.requestTechnology(NfcTech.Ndef);
-      const tag = await NfcManager.getTag();
-      console.log("NFC Tag détecté:", tag);
-
-      Alert.alert("Pointage NFC réussi", "La tâche a été marquée comme complétée.");
-    } catch (error) {
-      Alert.alert("Échec du scan NFC", "Impossible de valider la tâche via NFC.");
-    } finally {
-      NfcManager.cancelTechnologyRequest();
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -150,7 +230,7 @@ export default function TasksScreen() {
             <View key={task.id} style={styles.taskCard}>
               <View style={styles.taskHeader}>
                 <Text style={styles.taskTime}>
-                  {formatDate(task.date)} {task.heure_debut} - {task.heure_fin}
+                  {formatDate(task.date)} {task.heure_debut.substring(0, 5)} - {task.heure_fin.substring(0, 5)}
                 </Text>
                 <View
                   style={[
@@ -170,6 +250,17 @@ export default function TasksScreen() {
                   <Radio size={16} color="#FFF" />
                   <Text style={styles.nfcButtonText}>Scan NFC</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.eventButton}
+                  onPress={() => {
+                    setSelectedTask(task);
+                    setSelectedRemark(task.remarques || "Aucune remarque disponible");
+                    setNewRemark(task.remarques);
+                    setModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.eventButtonText}>Détails</Text>
+                </TouchableOpacity>
               </View>
             </View>
           ))
@@ -177,6 +268,49 @@ export default function TasksScreen() {
           <Text style={styles.errorText}>Aucune tâche disponible</Text>
         )}
       </ScrollView>
+      <Modal transparent={true} visible={modalVisible} animationType="slide">
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Modifier le commentaire</Text>
+            <TextInput
+              style={styles.modalInput}
+              multiline
+              placeholder="Saisir un commentaire..."
+              value={newRemark}
+              onChangeText={setNewRemark}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={updateRemark} style={styles.saveButton}>
+                <Save size={20} color="#FFF" />
+                <Text style={styles.modalButtonText}>Enregistrer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseButton}>
+                <X size={20} color="#FFF" />
+                <Text style={styles.modalButtonText}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent={true} visible={modalVisibleNFC} animationType="slide">
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Approchez une carte NFC</Text>
+            {scanning ? <ActivityIndicator size="large" color="#3B82F6" /> : null}
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                setScanning(false);
+                setModalVisible(false);
+                NfcManager.cancelTechnologyRequest();
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -264,5 +398,37 @@ const styles = StyleSheet.create({
     color: "#FFF",
     marginLeft: 5,
   },
+  eventButton: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    marginLeft: 10,
+  },
+  eventButtonText: {
+    color: '#1E293B',
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  modalBackground: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" },
+  modalContainer: { backgroundColor: "#FFF", padding: 20, borderRadius: 10, width: "80%", alignItems: "center" },
+  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
+  modalText: { fontSize: 16, color: "#374151", textAlign: "center", marginBottom: 15 },
+  modalCloseButton: { flexDirection: "row", backgroundColor: "#3B82F6", padding: 10, borderRadius: 5, alignItems: "center" },
+  modalCloseText: { color: "#FFF", marginLeft: 5 },
   errorText: { color: "red", textAlign: "center", marginTop: 20 },
+  modalInput: { width: "100%", borderWidth: 1, borderColor: "#E5E7EB", padding: 10, borderRadius: 5, minHeight: 80, textAlignVertical: "top" },
+  modalActions: { flexDirection: "row", justifyContent: "space-between", width: "100%", marginTop: 10 },
+  saveButton: { flexDirection: "row", backgroundColor: "#10B981", padding: 10, borderRadius: 5, alignItems: "center" },
+  modalButtonText: { color: "#FFF", marginLeft: 5 },
+  cancelButton: {
+    marginTop: 10,
+    backgroundColor: "#EF4444",
+    padding: 10,
+    borderRadius: 5,
+  },
+  cancelButtonText: {
+    color: "#FFF",
+  },
 });

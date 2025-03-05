@@ -188,11 +188,6 @@ export default function ScheduleScreen() {
                   <TouchableOpacity style={styles.eventButton}>
                     <Text style={styles.eventButtonText}>Détails</Text>
                   </TouchableOpacity>
-
-                  <TouchableOpacity style={[styles.eventButton, styles.checkInButton]}>
-                    <Radio size={16} color="#FFF" />
-                    <Text style={styles.checkInButtonText}>Pointer</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             </View>

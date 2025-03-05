@@ -73,12 +73,12 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>{greeting}, Sophie</Text>
             <Text style={styles.date}>{currentTime}</Text>
           </View>
-          <TouchableOpacity style={styles.notificationButton}>
+          {/*<TouchableOpacity style={styles.notificationButton}>
             <Bell size={24} color="#1E293B" />
             <View style={styles.notificationBadge}>
               <Text style={styles.notificationCount}>3</Text>
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity>*/}
         </View>
 
         <View style={styles.statusCard}>
